@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/opt/homebrew/bin/python3
 """nl-usage: NotchLimits data source shim.
 
 Runs `cswap list --json` (Claude accounts) and, in parallel, reads Codex
