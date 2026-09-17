@@ -2,7 +2,7 @@
 
 A macOS notch companion for Claude usage limits.
 
-Hover under the MacBook notch: it slowly stretches downward, then springs open into a liquid-glass panel that wraps around the notch, showing live Claude rate-limit usage for every account you have. One row per account: the Claude spark, the account name, a big bold percentage for whichever window is closest to the limit, and small bars for each window (5h, 7d, and scoped limits like Fable) with live reset countdowns. Move away and it melts back into the notch.
+Hover under the MacBook notch: it slowly stretches downward, then springs open into a liquid-glass panel that wraps around the notch, showing live Claude rate-limit usage for every account you have. One row per account: the Claude spark, the account name, a big bold percentage for whichever window is closest to the limit, small bars for each window (5h, 7d, and scoped limits like Fable), and a compact Switch button. Move away and it melts back into the notch.
 
 - **Zero permissions.** No Accessibility, no Screen Recording, no input monitoring. The hover detection is just polled `NSEvent.mouseLocation`.
 - **Zero dependencies** in the app itself. Pure SwiftUI + AppKit, no packages, about 1,600 lines of Swift.
@@ -10,7 +10,7 @@ Hover under the MacBook notch: it slowly stretches downward, then springs open i
 
 ## Where the data comes from
 
-NotchLimits renders data from [claude-swap](https://github.com/realiti4/claude-swap) (`cswap`), a third-party CLI that manages multiple Claude accounts and fetches their rate-limit usage. NotchLimits runs `cswap list --json` every 60 seconds and draws the result. It never touches your credentials itself.
+NotchLimits renders data from [claude-swap](https://github.com/realiti4/claude-swap) (`cswap`), a third-party CLI that manages multiple Claude accounts and fetches their rate-limit usage. NotchLimits runs `cswap list --json` every 60 seconds and draws the result. Clicking a row's Switch button runs `cswap switch <slot> --json`, then refreshes the panel. It never reads or writes your credentials itself.
 
 Optional: if you run `cswap` on a schedule (cron or launchd) and append its output to `~/Library/Logs/cswap-auto.log`, NotchLimits watches that file and refreshes a couple of seconds after each run instead of waiting for the next 60s poll. Without it the poll alone keeps the panel current.
 
