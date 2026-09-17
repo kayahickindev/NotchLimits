@@ -30,6 +30,7 @@ struct AccountVM: Identifiable {
     let isActive: Bool
     let needsRelogin: Bool    // usageStatus == "relogin_required"
     let isStale: Bool         // usage was null → values from lastGoodUsage
+    let canSwitch: Bool       // false for display-only synthetic rows
     let meters: [MeterVM]     // always ordered 5h, 7d, then scoped by name
 }
 
@@ -47,6 +48,7 @@ struct CSwapAccount: Decodable, Sendable {
     let organizationName: String?
     let alias: String?
     let active: Bool?
+    let switchable: Bool?
     let usageStatus: String?
     let usage: CSwapUsage?
     let lastGoodUsage: CSwapUsage?
@@ -155,6 +157,7 @@ extension AccountVM {
             isActive: wire.active ?? false,
             needsRelogin: wire.usageStatus == "relogin_required",
             isStale: wire.usage == nil,
+            canSwitch: wire.switchable ?? (email != "codex@openai.com"),
             meters: meters
         )
     }

@@ -7,6 +7,8 @@ import SwiftUI
 /// PanelContent, which owns the list.
 struct AccountRow: View {
     let account: AccountVM
+    let isSwitching: Bool
+    let onSwitch: () -> Void
     static let height: CGFloat = 64
 
     /// The binding window — the meter with the highest pct, since that's
@@ -101,7 +103,42 @@ struct AccountRow: View {
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Ink.muted)
                     .fixedSize()
+                if account.canSwitch {
+                    switchButton
+                }
             }
         }
+    }
+
+    private var switchButton: some View {
+        Button(action: onSwitch) {
+            Group {
+                if isSwitching {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(Ink.coral)
+                } else {
+                    Text(account.isActive ? "Active" : "Switch")
+                        .font(.system(size: 8, weight: .semibold))
+                }
+            }
+            .frame(width: 44, height: 16)
+            .foregroundStyle(account.isActive ? Ink.coral : Ink.secondary)
+            .background(
+                Capsule()
+                    .fill(account.isActive ? Ink.coral.opacity(0.14) : Color.white.opacity(0.08))
+            )
+            .overlay {
+                Capsule()
+                    .stroke(Color.white.opacity(account.isActive ? 0 : 0.14), lineWidth: 0.5)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(account.isActive || isSwitching)
+        .accessibilityLabel(
+            account.isActive
+                ? "Active account"
+                : "Switch to \(account.displayName)"
+        )
     }
 }

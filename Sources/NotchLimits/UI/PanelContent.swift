@@ -99,7 +99,11 @@ struct PanelContent: View {
     private var rowsStack: some View {
         VStack(spacing: 0) {
             ForEach(Array(store.accounts.enumerated()), id: \.element.id) { index, account in
-                AccountRow(account: account)
+                AccountRow(
+                    account: account,
+                    isSwitching: store.switchingAccount == account.id,
+                    onSwitch: { store.switchTo(accountNumber: account.id) }
+                )
                 if index < store.accounts.count - 1 {
                     Rectangle()
                         .fill(Color.white.opacity(0.06))

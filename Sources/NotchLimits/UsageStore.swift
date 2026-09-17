@@ -14,17 +14,20 @@ final class UsageStore: ObservableObject {
     @Published private(set) var activeNumber: Int? = nil
     @Published private(set) var lastUpdated: Date? = nil
     @Published private(set) var fetchError: String? = nil
+    @Published private(set) var switchingAccount: Int? = nil
 
     // Scripts/nl-usage is an optional shim that merges `cswap list --json`
     // with OpenAI Codex rate limits, emitting the same wire schema (Codex as
     // account slot 99). Installing it at ~/.local/bin/nl-usage opts in; the
     // resolved path is fixed at process start, like the cswap path always was.
-    private nonisolated static let cswapExecutablePath: String = {
+    private nonisolated static let cswapExecutablePath =
+        ("~/.local/bin/cswap" as NSString).expandingTildeInPath
+    private nonisolated static let listExecutablePath: String = {
         let shim = ("~/.local/bin/nl-usage" as NSString).expandingTildeInPath
         if FileManager.default.isExecutableFile(atPath: shim) {
             return shim
         }
-        return ("~/.local/bin/cswap" as NSString).expandingTildeInPath
+        return cswapExecutablePath
     }()
     private nonisolated static let logFilePath =
         ("~/Library/Logs/cswap-auto.log" as NSString).expandingTildeInPath
@@ -63,6 +66,23 @@ final class UsageStore: ObservableObject {
         fetchQueue.async { [weak self] in
             let outcome = UsageStore.runCSwapList()
             Task { @MainActor in
+                self?.apply(outcome)
+            }
+        }
+    }
+
+    func switchTo(accountNumber: Int) {
+        guard switchingAccount == nil, activeNumber != accountNumber else { return }
+        switchingAccount = accountNumber
+        fetchQueue.async { [weak self] in
+            let outcome: FetchOutcome
+            if let error = UsageStore.runCSwapSwitch(accountNumber: accountNumber) {
+                outcome = .failure(error)
+            } else {
+                outcome = UsageStore.runCSwapList()
+            }
+            Task { @MainActor in
+                self?.switchingAccount = nil
                 self?.apply(outcome)
             }
         }
@@ -138,7 +158,7 @@ final class UsageStore: ObservableObject {
     /// that terminates the process without blocking the read.
     private nonisolated static func runCSwapList() -> FetchOutcome {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: cswapExecutablePath)
+        process.executableURL = URL(fileURLWithPath: listExecutablePath)
         process.arguments = ["list", "--json"]
 
         let stdoutPipe = Pipe()
@@ -177,5 +197,45 @@ final class UsageStore: ObservableObject {
         } catch {
             return .failure("cswap JSON decode failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Returns nil on success, otherwise a short message suitable for the
+    /// panel footer. The account number is an Int from cswap's decoded list,
+    /// so it never crosses a shell or needs escaping.
+    private nonisolated static func runCSwapSwitch(accountNumber: Int) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: cswapExecutablePath)
+        process.arguments = ["switch", String(accountNumber), "--json"]
+
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        do {
+            try process.run()
+        } catch {
+            return "switch failed to launch: \(error.localizedDescription)"
+        }
+
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 15) {
+            if process.isRunning {
+                process.terminate()
+            }
+        }
+
+        let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            for data in [errorData, outputData] {
+                let message = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if let message, !message.isEmpty { return message }
+            }
+            return "switch failed (exit \(process.terminationStatus))"
+        }
+        guard !outputData.isEmpty else { return "switch produced no output" }
+        return nil
     }
 }
