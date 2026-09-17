@@ -24,8 +24,7 @@ struct MeterVM: Identifiable {
 
 struct AccountVM: Identifiable {
     let id: Int               // cswap slot number
-    var displayName: String   // alias ?? email local-part; UsageStore appends
-                              // the domain when two accounts collide on it
+    let displayName: String   // alias ?? the full email address
     let email: String
     let isActive: Bool
     let needsRelogin: Bool    // usageStatus == "relogin_required"
@@ -129,8 +128,6 @@ extension AccountVM {
         let displayName: String
         if let alias = wire.alias, !alias.isEmpty {
             displayName = alias
-        } else if let atIndex = email.firstIndex(of: "@") {
-            displayName = String(email[email.startIndex..<atIndex])
         } else {
             displayName = email
         }

@@ -91,20 +91,11 @@ final class UsageStore: ObservableObject {
     private func apply(_ outcome: FetchOutcome) {
         switch outcome {
         case .success(let output):
-            var mapped = (output.accounts ?? [])
+            // Rows show the full email address, which is already unique, so
+            // no disambiguation is needed.
+            accounts = (output.accounts ?? [])
                 .compactMap(AccountVM.init(wire:))
                 .sorted { $0.id < $1.id }
-            // Two accounts can share an email local-part (e.g. x@gmail.com
-            // and x@proton.me) — disambiguate colliding names with the
-            // domain's first label so every row is identifiable.
-            let collisions = Dictionary(grouping: mapped, by: \.displayName)
-                .filter { $0.value.count > 1 }.keys
-            for i in mapped.indices where collisions.contains(mapped[i].displayName) {
-                let domain = mapped[i].email.split(separator: "@").last ?? ""
-                let host = domain.split(separator: ".").first ?? domain
-                mapped[i].displayName += " (\(host))"
-            }
-            accounts = mapped
             activeNumber = output.activeAccountNumber
             fetchError = nil
             lastUpdated = Date()
