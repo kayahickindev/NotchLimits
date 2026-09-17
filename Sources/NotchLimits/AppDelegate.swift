@@ -66,8 +66,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.orderFrontRegardless()
 
         store.start()
-        engine.start()
-
         if demoOpen {
             engine.forceOpen()
             // CGWindowListCopyWindowInfo reports 0×0 for this transparent,
@@ -76,6 +74,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let f = window.frame
             print("WINDOW_FRAME x=\(f.origin.x) y=\(f.origin.y) w=\(f.width) h=\(f.height) midX=\(f.midX) screenMidX=\(geometry.screen.frame.midX) screenTopY=\(geometry.screen.frame.maxY)")
             fflush(stdout)
+        } else {
+            engine.start()
         }
     }
 
