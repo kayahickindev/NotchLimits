@@ -20,6 +20,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // A login-agent launch plus a manual `open` stacks two overlays on
+        // the notch, each polling cswap. The later launch steps aside.
+        if !demoOpen, let bundleID = Bundle.main.bundleIdentifier {
+            let me = ProcessInfo.processInfo.processIdentifier
+            let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+                .filter { $0.processIdentifier != me }
+            if !others.isEmpty {
+                NSApplication.shared.terminate(nil)
+                return
+            }
+        }
+
         NSApplication.shared.setActivationPolicy(.accessory)
 
         guard let geometry = NotchGeometry.detect() else {
