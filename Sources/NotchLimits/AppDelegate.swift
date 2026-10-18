@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var engine: HoverEngine!
     private var window: HostWindow!
     private var phaseObserver: AnyCancellable?
+    private var screenObserver: NSObjectProtocol?
 
     init(demoOpen: Bool) {
         self.demoOpen = demoOpen
@@ -77,6 +78,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         window.orderFrontRegardless()
 
+        // Closing the lid, plugging in a monitor, or changing a resolution
+        // moves the notch band (or the synthetic one) to new coordinates.
+        // Without this the panel stayed where the launch-time screen was,
+        // floating mid-screen on an external monitor in clamshell mode.
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.relayoutForScreens()
+                // Screens settle over a beat after a lid close or a hot
+                // plug (menu bar height, arrangement); look once more.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    self?.relayoutForScreens()
+                }
+            }
+        }
+
         store.start()
         if demoOpen {
             engine.forceOpen()
@@ -89,6 +109,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             engine.start()
         }
+    }
+
+    private func relayoutForScreens() {
+        guard let engine, let window,
+              let geometry = NotchGeometry.detect(),
+              geometry.layout != engine.geometry.layout else { return }
+        engine.update(geometry: geometry)
+        window.apply(geometry)
+        window.orderFrontRegardless()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -2,9 +2,9 @@ import AppKit
 import SwiftUI
 
 /// The single, always-present window. Borderless and non-activating so it
-/// never steals focus from whatever app is frontmost; its frame never
-/// moves or resizes after creation — only the SwiftUI content inside
-/// morphs. Click-through in `.idle`/`.peeking`, interactive in `.open`
+/// never steals focus from whatever app is frontmost; its frame only moves
+/// when the screen layout changes (`apply(_:)`) — otherwise only the
+/// SwiftUI content inside morphs. Click-through in `.idle`/`.peeking`, interactive in `.open`
 /// (toggled by AppDelegate as it observes `engine.phase`).
 @MainActor
 final class HostWindow: NSPanel {
@@ -36,15 +36,8 @@ final class HostWindow: NSPanel {
     init(geometry: NotchGeometry, engine: HoverEngine, store: UsageStore, onQuit: @escaping () -> Void) {
         self.engine = engine
 
-        let size = NSSize(
-            width: HostWindow.panelWidth,
-            height: geometry.maxOpenPanelHeight + geometry.notchRect.height + 40
-        )
-        let origin = NSPoint(
-            x: geometry.panelAnchorX - size.width / 2,
-            y: geometry.screen.frame.maxY - size.height
-        )
-        let frame = NSRect(origin: origin, size: size)
+        let frame = HostWindow.frame(for: geometry)
+        let size = frame.size
 
         // NSWindow's true designated initializer omits `screen:` — that
         // variant is a convenience initializer, and calling it via
@@ -97,6 +90,25 @@ final class HostWindow: NSPanel {
         hosting.wantsLayer = true
         hosting.layer?.backgroundColor = CGColor.clear
         contentView = hosting
+    }
+
+    /// Centered on the notch band, top flush with that screen's top edge.
+    static func frame(for geometry: NotchGeometry) -> NSRect {
+        let size = NSSize(
+            width: panelWidth,
+            height: geometry.maxOpenPanelHeight + geometry.notchRect.height + 40
+        )
+        let origin = NSPoint(
+            x: geometry.panelAnchorX - size.width / 2,
+            y: geometry.screen.frame.maxY - size.height
+        )
+        return NSRect(origin: origin, size: size)
+    }
+
+    /// Moves the panel onto the new notch band. The hosting view follows
+    /// through its autoresizing mask.
+    func apply(_ geometry: NotchGeometry) {
+        setFrame(HostWindow.frame(for: geometry), display: true)
     }
 
     // Borderless windows default to `canBecomeKey == false`; override so

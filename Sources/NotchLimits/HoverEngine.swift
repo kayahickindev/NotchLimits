@@ -28,7 +28,9 @@ final class HoverEngine: ObservableObject {
     /// check can include the panel's live on-screen frame.
     var panelFrameProvider: (() -> NSRect?)?
 
-    private let geometry: NotchGeometry
+    /// Published so MorphShell re-sizes the pill when the overlay moves to
+    /// another screen (see `update(geometry:)`).
+    @Published private(set) var geometry: NotchGeometry
     private var timer: Timer?
     private var currentHz: Double = 0
     private var lastTick: CFAbsoluteTime = 0
@@ -72,6 +74,15 @@ final class HoverEngine: ObservableObject {
         outsideGraceElapsed = 0
         phase = .open
         reschedule(hz: Self.activeHz)
+    }
+
+    /// The screen layout changed (lid closed, monitor plugged in or out,
+    /// resolution changed). Swap in the new hover zone and drop any peek or
+    /// open state, since the panel is about to jump to another place.
+    func update(geometry newGeometry: NotchGeometry) {
+        geometry = newGeometry
+        armingElapsed = 0
+        requestClose()
     }
 
     /// Esc key and the quit button both route here. Snaps straight to

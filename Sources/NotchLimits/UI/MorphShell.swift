@@ -247,6 +247,10 @@ struct MorphShell: View {
         // tall proposal instead of pinning it to the screen top.
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear(perform: syncOnAppear)
+        .onChange(of: engine.geometry.layout) { _, _ in
+            applyGeometry()
+            morph = -1
+        }
         .onPreferenceChange(PanelHeightPreferenceKey.self) { measured in
             guard measured > 0 else { return }
             contentNaturalHeight = measured
@@ -283,18 +287,23 @@ struct MorphShell: View {
     }
 
     private func syncOnAppear() {
-        if let geometry = NotchGeometry.detect() {
-            notchWidth = geometry.notchRect.width
-            notchHeight = geometry.notchRect.height
-            maxOpenHeight = geometry.maxOpenPanelHeight
-        }
-        openTargetHeight = openHeightEstimate
-        onOpenPanelSize(CGSize(width: openWidth, height: openTargetHeight))
+        applyGeometry()
         switch engine.phase {
         case .idle: morph = -1
         case .peeking(let target): retargetPeek(to: target)
         case .open: openPop()
         }
+    }
+
+    /// Sizes the pill to the engine's current screen: on appear, and again
+    /// whenever the overlay moves to another screen.
+    private func applyGeometry() {
+        let geometry = engine.geometry
+        notchWidth = geometry.notchRect.width
+        notchHeight = geometry.notchRect.height
+        maxOpenHeight = geometry.maxOpenPanelHeight
+        openTargetHeight = openHeightEstimate
+        onOpenPanelSize(CGSize(width: openWidth, height: openTargetHeight))
     }
 
     /// The one entry point for peek motion. The engine hands us a

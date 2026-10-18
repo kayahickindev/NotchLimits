@@ -44,7 +44,7 @@ NotchLimits expects the `cswap` binary at `~/.local/bin/cswap`, which is where `
 ## Requirements
 
 - macOS 26 (Tahoe) on Apple silicon. The panel uses the native `glassEffect` liquid glass. (An `.ultraThinMaterial` stand-in exists in the code, but only the headless `--snapshot` renderer uses it, because offscreen rendering cannot sample `glassEffect`.)
-- A notch is not strictly required: on a notchless Mac or clamshell mode it falls back to a synthetic band centered at the top of the main screen.
+- A notch is not strictly required: on a notchless Mac or in clamshell mode it falls back to a notch-sized band centered at the top of the menu bar screen, and it moves live when you close the lid, plug in a monitor, or change a resolution.
 - Xcode (the build uses `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build`).
 - [claude-swap](https://github.com/realiti4/claude-swap) 0.24+ (`cswap list --json`, schemaVersion 1).
 

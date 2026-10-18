@@ -2,6 +2,9 @@
 # Builds NotchLimits and installs it to /Applications, then launches it.
 # Pass --launch-agent to also install + load a login LaunchAgent
 # (RunAtLoad only — this app is not a daemon, so KeepAlive is false).
+# The agent is ProcessType Interactive: launchd's default spawns the binary
+# as a throttled daemon (main thread at priority 20 instead of an app's
+# 31+), and on a busy Mac the hover open took 1-4s instead of ~0.9s.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -42,6 +45,8 @@ if [[ "${1:-}" == "--launch-agent" ]]; then
     <true/>
     <key>KeepAlive</key>
     <false/>
+    <key>ProcessType</key>
+    <string>Interactive</string>
 </dict>
 </plist>
 PLIST_EOF

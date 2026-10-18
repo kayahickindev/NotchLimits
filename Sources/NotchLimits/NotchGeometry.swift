@@ -30,9 +30,26 @@ struct NotchGeometry {
         max(560, screen.frame.height - 200)
     }
 
+    /// Everything the window frame and the morph shape derive from. A change
+    /// here (lid closed, monitor plugged in, resolution or arrangement
+    /// changed) means the overlay has to move.
+    struct Layout: Equatable {
+        let screenFrame: NSRect
+        let notchRect: NSRect
+    }
+
+    var layout: Layout {
+        Layout(screenFrame: screen.frame, notchRect: notchRect)
+    }
+
+    /// Width of the synthetic band on a notchless screen: the 14" MacBook
+    /// Pro's measured notch (663..848pt), so the pill looks the same on an
+    /// external monitor as it does on the built-in display.
+    static let syntheticNotchWidth: CGFloat = 185
+
     /// Picks the screen that actually has a notch (`safeAreaInsets.top > 0`)
     /// and derives the notch band from its auxiliary safe areas. Falls back
-    /// to a synthetic centered band on the main screen so the app still
+    /// to a synthetic centered band on the menu bar screen so the app still
     /// works on non-notched / clamshell setups.
     static func detect() -> NotchGeometry? {
         if let notched = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) {
@@ -43,15 +60,18 @@ struct NotchGeometry {
             let notchRect = NSRect(x: leftX, y: menuBarBottomY, width: max(rightX - leftX, 0), height: insetTop)
             return make(screen: notched, notchRect: notchRect, menuBarBottomY: menuBarBottomY)
         }
-        guard let main = NSScreen.main else { return nil }
-        // No physical notch: a 200pt-wide band centered at the top, using
-        // the real menu bar height so the hover zone still sits right
-        // under it.
-        let menuBarHeight = max(main.frame.maxY - main.visibleFrame.maxY, 24)
-        let width: CGFloat = 200
-        let menuBarBottomY = main.frame.maxY - menuBarHeight
-        let notchRect = NSRect(x: main.frame.midX - width / 2, y: menuBarBottomY, width: width, height: menuBarHeight)
-        return make(screen: main, notchRect: notchRect, menuBarBottomY: menuBarBottomY)
+        // No physical notch (clamshell on an external monitor, or a notchless
+        // Mac): a notch-sized band centered at the top of the menu bar
+        // screen, using the real menu bar height so the hover zone still
+        // sits right under it. screens.first is the screen holding the menu
+        // bar; NSScreen.main follows the key window, which this accessory
+        // app never owns.
+        guard let primary = NSScreen.screens.first ?? NSScreen.main else { return nil }
+        let menuBarHeight = max(primary.frame.maxY - primary.visibleFrame.maxY, 24)
+        let width = syntheticNotchWidth
+        let menuBarBottomY = primary.frame.maxY - menuBarHeight
+        let notchRect = NSRect(x: primary.frame.midX - width / 2, y: menuBarBottomY, width: width, height: menuBarHeight)
+        return make(screen: primary, notchRect: notchRect, menuBarBottomY: menuBarBottomY)
     }
 
     private static func make(screen: NSScreen, notchRect: NSRect, menuBarBottomY: CGFloat) -> NotchGeometry {
