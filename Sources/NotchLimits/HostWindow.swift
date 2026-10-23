@@ -11,12 +11,12 @@ final class HostWindow: NSPanel {
     private let engine: HoverEngine
 
     /// Fixed panel width: generous enough to contain the widest open shape
-    /// (the two-column panel, so Codex rows arriving never need a resize)
-    /// plus room for its drop shadow to blur into. Height is derived
-    /// per-screen at init from the geometry's maxOpenPanelHeight, so the
-    /// window never caps the account list.
+    /// (the full three-column panel, so a Team or Codex column arriving never
+    /// needs a resize) plus room for its drop shadow to blur into. Height is
+    /// derived per-screen at init from the geometry's maxOpenPanelHeight, so
+    /// the window never caps the account list.
     static func panelWidth(notchWidth: CGFloat) -> CGFloat {
-        PanelContent.openWidth(notchWidth: notchWidth, twoColumns: true) + 80
+        PanelContent.openWidth(notchWidth: notchWidth, columns: 3) + 80
     }
 
     /// Size of the open panel shape, pushed by MorphShell whenever its open

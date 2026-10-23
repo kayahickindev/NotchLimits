@@ -37,16 +37,35 @@ final class UsageStore: ObservableObject {
     private nonisolated static let logFilePath =
         ("~/Library/Logs/cswap-auto.log" as NSString).expandingTildeInPath
 
-    var claudeAccounts: [AccountVM] { accounts.filter { !$0.isCodex } }
+    /// The three panel columns, in display order.
+    enum PanelColumn { case max, team, codex }
+
+    /// Claude Max column: every non-Codex account that isn't a Team seat —
+    /// a missing/unknown planTier lands here too, so a row is never dropped.
+    var maxAccounts: [AccountVM] { accounts.filter { !$0.isCodex && $0.planTier != "team" } }
+    /// Claude Team column: non-Codex accounts tagged "team".
+    var teamAccounts: [AccountVM] { accounts.filter { !$0.isCodex && $0.planTier == "team" } }
+    /// Codex column: grouped by slot/org, unchanged from the two-column build.
     var codexAccounts: [AccountVM] { accounts.filter(\.isCodex) }
-    /// Codex rows get their own column beside the Claude rows. Without
-    /// both, the panel stays the original single list.
-    var showsCodexColumn: Bool {
-        accounts.contains(where: \.isCodex) && accounts.contains(where: { !$0.isCodex })
+
+    /// The columns that actually have rows, in order Max, Team, Codex. An
+    /// empty group is dropped entirely — its header never renders. One or
+    /// zero non-empty groups falls back to the original single list.
+    var visibleColumns: [(kind: PanelColumn, accounts: [AccountVM])] {
+        var columns: [(PanelColumn, [AccountVM])] = []
+        if !maxAccounts.isEmpty { columns.append((.max, maxAccounts)) }
+        if !teamAccounts.isEmpty { columns.append((.team, teamAccounts)) }
+        if !codexAccounts.isEmpty { columns.append((.codex, codexAccounts)) }
+        return columns
     }
-    /// Rows in the tallest list: the panel's height follows it.
+
+    /// 1, 2, or 3 — drives the open width. Zero accounts still reads as one
+    /// (an empty single column) so the panel never collapses to nothing.
+    var columnCount: Int { max(1, visibleColumns.count) }
+
+    /// Rows in the tallest column: the panel's height follows it.
     var listRowCount: Int {
-        showsCodexColumn ? max(claudeAccounts.count, codexAccounts.count) : accounts.count
+        visibleColumns.map(\.accounts.count).max() ?? accounts.count
     }
 
     /// Dedicated background queue for the blocking Process/Pipe work — keeps

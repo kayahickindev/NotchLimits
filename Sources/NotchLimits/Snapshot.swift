@@ -27,7 +27,7 @@ enum Snapshot {
         let geometry = NotchGeometry.detect()
         let notchWidth = geometry?.notchRect.width ?? 200
         let notchHeight = geometry?.notchRect.height ?? 32
-        let openWidth = PanelContent.openWidth(notchWidth: notchWidth, twoColumns: store.showsCodexColumn)
+        let openWidth = PanelContent.openWidth(notchWidth: notchWidth, columns: store.columnCount)
         let maxOpenHeight = geometry?.maxOpenPanelHeight ?? 560
 
         // The same list cap MorphShell passes, so a long account list stops

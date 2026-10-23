@@ -190,7 +190,7 @@ struct MorphShell: View {
     private var popT: Double { max(morph, 0) }
     private var peekT: Double { min(max(morph + 1, 0), 1) }
     private var openWidth: CGFloat {
-        PanelContent.openWidth(notchWidth: notchWidth, twoColumns: store.showsCodexColumn)
+        PanelContent.openWidth(notchWidth: notchWidth, columns: store.columnCount)
     }
 
     /// Peek grows to just 2pt proud of each notch edge while dropping 30pt

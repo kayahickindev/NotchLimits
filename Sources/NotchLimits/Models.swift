@@ -37,6 +37,10 @@ struct AccountVM: Identifiable {
     /// An OpenAI Codex row from nl-usage (slot 99, or 100 + n per login),
     /// drawn in the panel's Codex column.
     var isCodex = false
+    /// nl-usage's grouping hint: "max" | "team" | "codex". A Claude account
+    /// with a missing/unknown tier falls into the Max column (see
+    /// `UsageStore.maxAccounts`), so a row never vanishes.
+    var planTier: String? = nil
 
     /// The name under the Codex column header, which already says Codex:
     /// "codex kaya · pro" reads "kaya · pro". A bare "codex" stays.
@@ -71,6 +75,7 @@ struct CSwapAccount: Decodable, Sendable {
     let usageAgeSeconds: Double?
     let lastGoodFetchedAt: String?
     let lastGoodAgeSeconds: Double?
+    let planTier: String?      // "max" | "team" | "codex"; may be absent
 }
 
 struct CSwapUsage: Decodable, Sendable {
@@ -173,7 +178,8 @@ extension AccountVM {
             canSwitch: wire.switchable ?? (email != "codex@openai.com"),
             meters: meters,
             switchArguments: wire.switchArgs,
-            isCodex: number >= 99 || wire.organizationName == "OpenAI Codex"
+            isCodex: number >= 99 || wire.organizationName == "OpenAI Codex",
+            planTier: wire.planTier
         )
     }
 }

@@ -58,3 +58,29 @@ struct ClaudeSpark: Shape {
         }
     }
 }
+
+/// A hand-drawn OpenAI-style mark: three identical elongated loops sharing a
+/// center, rotated 0° / 60° / 120°, which interlock into the six-fold knot
+/// the OpenAI glyph reads as. Meant to be STROKED (not filled) so the woven
+/// loops stay open and legible at ~16pt — an approximation, no asset, no SF
+/// Symbol. Used in a neutral ink for the Codex column header.
+struct OpenAIMark: Shape {
+    func path(in rect: CGRect) -> Path {
+        let size = min(rect.width, rect.height)
+        let center = CGPoint(x: rect.midX, y: rect.midY)
+        // Narrow, tall loops: narrow enough that the centre stays open
+        // rather than filling into a blob, tall enough to reach a rounded
+        // lobe out past the hub.
+        let loopWidth = size * 0.40
+        let loopHeight = size * 0.92
+        let loop = CGRect(x: -loopWidth / 2, y: -loopHeight / 2, width: loopWidth, height: loopHeight)
+
+        var combined = Path()
+        for i in 0..<3 {
+            var transform = CGAffineTransform(translationX: center.x, y: center.y)
+            transform = transform.rotated(by: Double(i) * .pi / 3)
+            combined.addPath(Path(roundedRect: loop, cornerRadius: loopWidth / 2).applying(transform))
+        }
+        return combined
+    }
+}

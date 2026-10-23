@@ -4,12 +4,14 @@ import SwiftUI
 /// Laid out at its natural intrinsic height (MorphShell owns the height cap
 /// and clips to it; Snapshot passes the same list cap). `width`
 /// tracks the wrap shape's actual open width (`openWidth(notchWidth:
-/// twoColumns:)`), since that varies by machine. `notchHeight` insets all
-/// content below the physical notch band (also machine-varying) so nothing
-/// ever sits above the cutout — the band beside/around the notch stays pure
-/// contentless glass. With Codex rows the list splits in two: Claude on the
-/// left, Codex on the right, each under its own half of the header, while
-/// the hero and footer keep the full width.
+/// columns:)`), since that varies by machine and by how many columns have
+/// rows. `notchHeight` insets all content below the physical notch band
+/// (also machine-varying) so nothing ever sits above the cutout — the band
+/// beside/around the notch stays pure contentless glass. When more than one
+/// account group has rows the list splits into side-by-side columns —
+/// Claude Max, Claude Team, Codex, in that order, empty groups dropped —
+/// each under its own header, while the hero and footer keep the full width.
+/// A single non-empty group falls back to the original one-column list.
 @MainActor
 struct PanelContent: View {
     @ObservedObject var store: UsageStore
@@ -32,25 +34,34 @@ struct PanelContent: View {
     /// Hero + header + footer: everything but the account list.
     static let chromeHeight = TokenHero.height + headerHeight + footerHeight
 
-    /// One column wraps the notch in about 110pt of glass a side
-    /// (DESIGN-V1.1). The Codex column is a second column of exactly that
-    /// width, so a row lays out as it does in the single list: three
-    /// meters, the big percentage and a full email all fit, nothing
-    /// squeezed. 2 × 405 + 12 = 822pt on a 14" MacBook Pro or the
-    /// synthetic band.
-    static func columnWidth(notchWidth: CGFloat) -> CGFloat { notchWidth + 220 }
+    /// Per-column width, narrowed from the old single-column 405 so three
+    /// columns plus two gaps clear a 14" MacBook Pro (~1512pt) and the
+    /// synthetic band with the window's side margins. The floor is the row's
+    /// own content: up to three meters (a Max account carries 5h · 7d ·
+    /// Fable), the big percentage and the Switch button must not clip, though
+    /// the longest emails may ellipsize. 185 (the notch) + 210 = 395 sits
+    /// just above that floor; three of them total 1209pt open / 1289pt
+    /// window, which centers on a 1512pt screen with ~110pt to spare a side.
+    static func columnWidth(notchWidth: CGFloat) -> CGFloat { notchWidth + 210 }
     static let columnGap: CGFloat = 12
-    static func openWidth(notchWidth: CGFloat, twoColumns: Bool) -> CGFloat {
-        let column = columnWidth(notchWidth: notchWidth)
-        return twoColumns ? column * 2 + columnGap : column
+    /// Open width for `columns` (1, 2, or 3) side-by-side columns.
+    static func openWidth(notchWidth: CGFloat, columns: Int) -> CGFloat {
+        let n = CGFloat(max(1, columns))
+        return columnWidth(notchWidth: notchWidth) * n + columnGap * (n - 1)
     }
 
-    private var columnWidth: CGFloat { (width - Self.columnGap) / 2 }
+    /// The width of one column given the current total `width` and how many
+    /// columns share it — the inverse of `openWidth`, so the columns tile the
+    /// panel exactly whether there are 1, 2, or 3 of them.
+    private func columnWidth(count: Int) -> CGFloat {
+        let n = CGFloat(max(1, count))
+        return (width - Self.columnGap * (n - 1)) / n
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             TokenHero(tokens: tokens)
-            if store.showsCodexColumn {
+            if store.columnCount >= 2 {
                 columnHeaders
             } else {
                 header
@@ -80,37 +91,56 @@ struct PanelContent: View {
         .frame(height: Self.headerHeight)
     }
 
-    /// The single header's two halves, one over each column; the controls
-    /// stay at the far right.
+    /// One header per visible column — "Claude Max" / "Claude Team" / "Codex"
+    /// over their own column, each sized the same as the rows beneath it. The
+    /// shared controls (updated time, refresh, quit) ride the far right of
+    /// the last column only.
     private var columnHeaders: some View {
-        HStack(spacing: Self.columnGap) {
-            HStack(spacing: 8) {
-                ClaudeSpark().fill(Ink.coral).frame(width: 16, height: 16)
-                Text("Claude")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Ink.primary)
-                Spacer(minLength: 0)
+        let columns = store.visibleColumns
+        return HStack(spacing: Self.columnGap) {
+            ForEach(Array(columns.enumerated()), id: \.offset) { index, column in
+                columnHeader(kind: column.kind, isLast: index == columns.count - 1)
+                    .frame(width: columnWidth(count: columns.count))
             }
-            .padding(.horizontal, 16)
-            .frame(width: columnWidth)
-
-            HStack(spacing: 8) {
-                Image(systemName: "terminal.fill")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Ink.secondary)
-                    .frame(width: 16, height: 16)
-                Text("Codex")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Ink.primary)
-
-                Spacer(minLength: 8)
-
-                headerControls
-            }
-            .padding(.horizontal, 16)
-            .frame(width: columnWidth)
         }
         .frame(height: Self.headerHeight)
+    }
+
+    @ViewBuilder
+    private func columnHeader(kind: UsageStore.PanelColumn, isLast: Bool) -> some View {
+        HStack(spacing: 8) {
+            columnHeaderIcon(kind)
+                .frame(width: 16, height: 16)
+            Text(columnTitle(kind))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Ink.primary)
+                .lineLimit(1)
+
+            Spacer(minLength: isLast ? 8 : 0)
+
+            if isLast { headerControls }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    @ViewBuilder
+    private func columnHeaderIcon(_ kind: UsageStore.PanelColumn) -> some View {
+        switch kind {
+        case .max, .team:
+            // Both are Claude, so both wear the Claude spark.
+            ClaudeSpark().fill(Ink.coral)
+        case .codex:
+            // A hand-drawn OpenAI-style knot, not an SF Symbol or an asset.
+            OpenAIMark().stroke(Ink.secondary, style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round))
+        }
+    }
+
+    private func columnTitle(_ kind: UsageStore.PanelColumn) -> String {
+        switch kind {
+        case .max: return "Claude Max"
+        case .team: return "Claude Team"
+        case .codex: return "Codex"
+        }
     }
 
     @ViewBuilder
@@ -171,15 +201,18 @@ struct PanelContent: View {
 
     @ViewBuilder
     private var listStack: some View {
-        if store.showsCodexColumn {
+        let columns = store.visibleColumns
+        if columns.count >= 2 {
             HStack(alignment: .top, spacing: Self.columnGap) {
-                rowsStack(store.claudeAccounts)
-                    .frame(width: columnWidth)
-                rowsStack(store.codexAccounts, codexNames: true)
-                    .frame(width: columnWidth)
+                ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
+                    rowsStack(column.accounts, codexNames: column.kind == .codex)
+                        .frame(width: columnWidth(count: columns.count))
+                }
             }
         } else {
-            rowsStack(store.accounts)
+            // One or zero non-empty groups: the original single list, whose
+            // Max-only form is byte-identical to the pre-column look.
+            rowsStack(store.accounts, codexNames: columns.first?.kind == .codex)
         }
     }
 
