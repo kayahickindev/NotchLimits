@@ -234,7 +234,15 @@ struct MorphShell: View {
                     maxListHeight: maxOpenHeight - PanelContent.chromeHeight
                 )
                     .frame(width: openWidth, alignment: .top)
-                    .background(heightProbe)
+                    // The content's natural height, before the clip below.
+                    // A GeometryReader preference in a .background used to
+                    // carry this, but on macOS 26 it never got past its
+                    // initial 0, so the panel kept its open-time estimate:
+                    // the minimum height under --demo-open, and rows
+                    // counted without their separators otherwise.
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { measured in
+                        applyMeasuredHeight(measured)
+                    }
                     .frame(height: shapeHeight, alignment: .top)
                     .clipped()
                     .opacity(contentOpacity)
@@ -251,16 +259,6 @@ struct MorphShell: View {
         .onChange(of: engine.geometry.layout) { _, _ in
             applyGeometry()
             morph = -1
-        }
-        .onPreferenceChange(PanelHeightPreferenceKey.self) { measured in
-            guard measured > 0 else { return }
-            contentNaturalHeight = measured
-            let target = min(max(measured, Self.minOpenHeight + notchHeight), maxOpenHeight + notchHeight)
-            if engine.phase == .open {
-                withAnimation(Self.openSpring) { openTargetHeight = target }
-            } else {
-                openTargetHeight = target
-            }
         }
         .onChange(of: openTargetHeight) { _, newHeight in
             onOpenPanelSize(CGSize(width: openWidth, height: newHeight))
@@ -281,9 +279,14 @@ struct MorphShell: View {
         }
     }
 
-    private var heightProbe: some View {
-        GeometryReader { proxy in
-            Color.clear.preference(key: PanelHeightPreferenceKey.self, value: proxy.size.height)
+    private func applyMeasuredHeight(_ measured: CGFloat) {
+        guard measured > 0 else { return }
+        contentNaturalHeight = measured
+        let target = min(max(measured, Self.minOpenHeight + notchHeight), maxOpenHeight + notchHeight)
+        if engine.phase == .open {
+            withAnimation(Self.openSpring) { openTargetHeight = target }
+        } else {
+            openTargetHeight = target
         }
     }
 
@@ -357,12 +360,5 @@ struct MorphShell: View {
             morph = -1
             glassAmount = 0
         }
-    }
-}
-
-private struct PanelHeightPreferenceKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
