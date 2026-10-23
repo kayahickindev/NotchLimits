@@ -8,6 +8,8 @@ import SwiftUI
 struct AccountRow: View {
     let account: AccountVM
     let isSwitching: Bool
+    /// Shown in place of `displayName` (the Codex column drops "codex ").
+    var name: String? = nil
     let onSwitch: () -> Void
     static let height: CGFloat = 64
 
@@ -43,7 +45,7 @@ struct AccountRow: View {
                         .fill(sparkColor)
                         .frame(width: 13, height: 13)
                         .shadow(color: Ink.coral.opacity(sparkGlow), radius: 5)
-                    Text(account.displayName)
+                    Text(name ?? account.displayName)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Ink.primary)
                         .lineLimit(1)
@@ -108,7 +110,9 @@ struct AccountRow: View {
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(Ink.muted)
                     .fixedSize()
-                if account.canSwitch {
+                // nl-usage marks the live Codex login unswitchable; it still
+                // gets the disabled Active pill a live Claude row shows.
+                if account.canSwitch || (account.isActive && account.switchArguments != nil) {
                     switchButton
                 }
             }

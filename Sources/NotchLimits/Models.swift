@@ -34,6 +34,18 @@ struct AccountVM: Identifiable {
     /// cswap arguments that make this row active; nil = `switch <id> --json`.
     /// Codex rows from nl-usage send `codex switch <n> --json`.
     var switchArguments: [String]? = nil
+    /// An OpenAI Codex row from nl-usage (slot 99, or 100 + n per login),
+    /// drawn in the panel's Codex column.
+    var isCodex = false
+
+    /// The name under the Codex column header, which already says Codex:
+    /// "codex kaya · pro" reads "kaya · pro". A bare "codex" stays.
+    var codexColumnName: String {
+        let prefix = "codex "
+        guard displayName.count > prefix.count,
+              displayName.lowercased().hasPrefix(prefix) else { return displayName }
+        return String(displayName.dropFirst(prefix.count))
+    }
 }
 
 // Wire schema (cswap list --json, every leaf Optional per spec). Extra live
@@ -160,7 +172,8 @@ extension AccountVM {
             isStale: wire.usage == nil,
             canSwitch: wire.switchable ?? (email != "codex@openai.com"),
             meters: meters,
-            switchArguments: wire.switchArgs
+            switchArguments: wire.switchArgs,
+            isCodex: number >= 99 || wire.organizationName == "OpenAI Codex"
         )
     }
 }

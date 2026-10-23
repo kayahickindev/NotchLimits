@@ -10,11 +10,14 @@ import SwiftUI
 final class HostWindow: NSPanel {
     private let engine: HoverEngine
 
-    /// Fixed panel width: generous enough to contain the open shape
-    /// (notchWidth + 220) plus room for its drop shadow to blur into.
-    /// Height is derived per-screen at init from the geometry's
-    /// maxOpenPanelHeight, so the window never caps the account list.
-    static let panelWidth: CGFloat = 480
+    /// Fixed panel width: generous enough to contain the widest open shape
+    /// (the two-column panel, so Codex rows arriving never need a resize)
+    /// plus room for its drop shadow to blur into. Height is derived
+    /// per-screen at init from the geometry's maxOpenPanelHeight, so the
+    /// window never caps the account list.
+    static func panelWidth(notchWidth: CGFloat) -> CGFloat {
+        PanelContent.openWidth(notchWidth: notchWidth, twoColumns: true) + 80
+    }
 
     /// Size of the open panel shape, pushed by MorphShell whenever its open
     /// target changes. `openPanelRect` gives HoverEngine the REAL panel rect
@@ -95,7 +98,7 @@ final class HostWindow: NSPanel {
     /// Centered on the notch band, top flush with that screen's top edge.
     static func frame(for geometry: NotchGeometry) -> NSRect {
         let size = NSSize(
-            width: panelWidth,
+            width: panelWidth(notchWidth: geometry.notchRect.width),
             height: geometry.maxOpenPanelHeight + geometry.notchRect.height + 40
         )
         let origin = NSPoint(

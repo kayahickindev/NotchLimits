@@ -118,6 +118,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let f = window.frame
             print("WINDOW_FRAME x=\(f.origin.x) y=\(f.origin.y) w=\(f.width) h=\(f.height) midX=\(f.midX) screenMidX=\(geometry.screen.frame.midX) screenTopY=\(geometry.screen.frame.maxY)")
             fflush(stdout)
+            // The stay-open hit rect, once the first fetch has sized the panel.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak window] in
+                guard let p = window?.openPanelRect else { return }
+                print("OPEN_PANEL_RECT x=\(p.origin.x) y=\(p.origin.y) w=\(p.width) h=\(p.height) midX=\(p.midX) maxY=\(p.maxY)")
+                fflush(stdout)
+            }
         }
     }
 

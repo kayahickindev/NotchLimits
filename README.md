@@ -22,7 +22,7 @@ If you also use OpenAI's Codex CLI, [`Scripts/nl-usage`](Scripts/nl-usage) is an
 ln -s "$PWD/Scripts/nl-usage" ~/.local/bin/nl-usage
 ```
 
-NotchLimits prefers `~/.local/bin/nl-usage` when it exists and behaves exactly as before when it doesn't. If a Codex read fails, the shim reuses its last snapshot for up to 30 minutes (shown as a stale row) or omits the row; cswap errors pass through untouched.
+With Codex rows present the panel opens in two columns, Claude accounts on the left and Codex logins on the right, each under its own header; without them it is the single list. NotchLimits prefers `~/.local/bin/nl-usage` when it exists and behaves exactly as before when it doesn't. If a Codex read fails, the shim reuses its last snapshot for up to 30 minutes (shown as a stale row) or omits the row; cswap errors pass through untouched.
 
 So the setup is two steps:
 
@@ -56,7 +56,7 @@ Nothing leaves your Mac, and the number only ever goes up. The first launch coun
 .build/debug/NotchLimits --tokens    # count once and print the totals and per-log offsets as JSON
 ```
 
-Set `NOTCHLIMITS_STATE_DIR` to keep a dev build's ledger apart from the installed app's.
+Set `NOTCHLIMITS_STATE_DIR` to keep a dev build's ledger apart from the installed app's, and `NOTCHLIMITS_USAGE_CMD` to point a dev build at any executable that answers `list --json` (for example a script that cats a fixture) instead of nl-usage or cswap.
 
 ## Requirements
 

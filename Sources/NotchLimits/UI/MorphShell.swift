@@ -189,7 +189,9 @@ struct MorphShell: View {
 
     private var popT: Double { max(morph, 0) }
     private var peekT: Double { min(max(morph + 1, 0), 1) }
-    private var openWidth: CGFloat { notchWidth + 220 }
+    private var openWidth: CGFloat {
+        PanelContent.openWidth(notchWidth: notchWidth, twoColumns: store.showsCodexColumn)
+    }
 
     /// Peek grows to just 2pt proud of each notch edge while dropping 30pt
     /// below the menu bar, so it reads as the notch itself stretching. The
@@ -210,7 +212,7 @@ struct MorphShell: View {
     /// by that inset too, so the guaranteed ≥320pt content region still
     /// holds below the inset rather than being eaten by it.
     private var openHeightEstimate: CGFloat {
-        let content = notchHeight + PanelContent.chromeHeight + CGFloat(store.accounts.count) * Self.rowHeight
+        let content = notchHeight + PanelContent.chromeHeight + CGFloat(store.listRowCount) * Self.rowHeight
         return min(max(content, Self.minOpenHeight + notchHeight), maxOpenHeight + notchHeight)
     }
 
@@ -262,6 +264,11 @@ struct MorphShell: View {
         }
         .onChange(of: openTargetHeight) { _, newHeight in
             onOpenPanelSize(CGSize(width: openWidth, height: newHeight))
+        }
+        // Codex rows arriving or leaving widen or narrow the panel; the
+        // stay-open hit rect has to follow, or the right column closes it.
+        .onChange(of: openWidth) { _, newWidth in
+            onOpenPanelSize(CGSize(width: newWidth, height: openTargetHeight))
         }
         .onChange(of: engine.phase) { oldPhase, newPhase in
             switch newPhase {

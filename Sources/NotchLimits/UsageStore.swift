@@ -20,9 +20,14 @@ final class UsageStore: ObservableObject {
     // with OpenAI Codex rate limits, emitting the same wire schema (Codex as
     // account slot 99). Installing it at ~/.local/bin/nl-usage opts in; the
     // resolved path is fixed at process start, like the cswap path always was.
+    // NOTCHLIMITS_USAGE_CMD (dev runs) replaces both with any executable that
+    // answers `list --json`, such as a script that cats a fixture.
     private nonisolated static let cswapExecutablePath =
         ("~/.local/bin/cswap" as NSString).expandingTildeInPath
     private nonisolated static let listExecutablePath: String = {
+        if let command = ProcessInfo.processInfo.environment["NOTCHLIMITS_USAGE_CMD"], !command.isEmpty {
+            return (command as NSString).expandingTildeInPath
+        }
         let shim = ("~/.local/bin/nl-usage" as NSString).expandingTildeInPath
         if FileManager.default.isExecutableFile(atPath: shim) {
             return shim
@@ -31,6 +36,18 @@ final class UsageStore: ObservableObject {
     }()
     private nonisolated static let logFilePath =
         ("~/Library/Logs/cswap-auto.log" as NSString).expandingTildeInPath
+
+    var claudeAccounts: [AccountVM] { accounts.filter { !$0.isCodex } }
+    var codexAccounts: [AccountVM] { accounts.filter(\.isCodex) }
+    /// Codex rows get their own column beside the Claude rows. Without
+    /// both, the panel stays the original single list.
+    var showsCodexColumn: Bool {
+        accounts.contains(where: \.isCodex) && accounts.contains(where: { !$0.isCodex })
+    }
+    /// Rows in the tallest list: the panel's height follows it.
+    var listRowCount: Int {
+        showsCodexColumn ? max(claudeAccounts.count, codexAccounts.count) : accounts.count
+    }
 
     /// Dedicated background queue for the blocking Process/Pipe work — keeps
     /// it off Swift's cooperative thread pool.
