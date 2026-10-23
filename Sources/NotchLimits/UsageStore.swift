@@ -74,9 +74,11 @@ final class UsageStore: ObservableObject {
     func switchTo(accountNumber: Int) {
         guard switchingAccount == nil, activeNumber != accountNumber else { return }
         switchingAccount = accountNumber
+        let arguments = accounts.first { $0.id == accountNumber }?.switchArguments
+            ?? ["switch", String(accountNumber), "--json"]
         fetchQueue.async { [weak self] in
             let outcome: FetchOutcome
-            if let error = UsageStore.runCSwapSwitch(accountNumber: accountNumber) {
+            if let error = UsageStore.runCSwapSwitch(arguments: arguments) {
                 outcome = .failure(error)
             } else {
                 outcome = UsageStore.runCSwapList()
@@ -191,12 +193,12 @@ final class UsageStore: ObservableObject {
     }
 
     /// Returns nil on success, otherwise a short message suitable for the
-    /// panel footer. The account number is an Int from cswap's decoded list,
-    /// so it never crosses a shell or needs escaping.
-    private nonisolated static func runCSwapSwitch(accountNumber: Int) -> String? {
+    /// panel footer. The arguments go straight to cswap as an argv array, so
+    /// they never cross a shell or need escaping.
+    private nonisolated static func runCSwapSwitch(arguments: [String]) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: cswapExecutablePath)
-        process.arguments = ["switch", String(accountNumber), "--json"]
+        process.arguments = arguments
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()

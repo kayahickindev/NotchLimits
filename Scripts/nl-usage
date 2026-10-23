@@ -12,9 +12,15 @@ become scoped meters labeled "<Model> 5h" / "<Model> 7d". A failed Codex
 read falls back to a <30-min-old cache as lastGoodUsage (stale row);
 with no usable cache the Codex row is simply omitted.
 
+When `cswap codex` manages several Codex logins, each one gets its own row
+(slot 100 + its number) from the readings `cswap codex auto` keeps, with a
+Switch button that runs `cswap codex switch`; the single live-login read
+above is then skipped.
+
 If cswap itself fails or emits non-JSON, its output and exit code pass
 through untouched so the app's normal error path still works.
 """
+import calendar
 import json
 import os
 import subprocess
@@ -26,6 +32,7 @@ CSWAP = os.path.expanduser("~/.local/bin/cswap")
 CODEX = os.path.expanduser("~/.local/bin/codex")
 CACHE = os.path.expanduser("~/.cache/nl-codex-usage.json")
 CODEX_SLOT = 99
+CODEX_ROW_BASE = 100
 CACHE_MAX_AGE_S = 30 * 60
 
 # The app kills its child after 10s; keep worst-case under that.
@@ -168,10 +175,91 @@ def codex_account(fresh_usage):
     return None
 
 
+def parse_iso(value):
+    try:
+        return calendar.timegm(time.strptime(value, "%Y-%m-%dT%H:%M:%SZ"))
+    except (TypeError, ValueError):
+        return None
+
+
+def wire_usage(reading):
+    """A `cswap codex list` reading in cswap's wire schema, or None."""
+    if not isinstance(reading, dict) or reading.get("error"):
+        return None
+    five = seven = None
+    scoped = []
+    for window in reading.get("windows") or []:
+        m = {"pct": float(window.get("pct") or 0), "resetsAt": window.get("resetsAt"),
+             "countdown": None, "clock": None}
+        label = window.get("label")
+        if label == "5h" and five is None:
+            five = m
+        elif label == "7d" and seven is None:
+            seven = m
+        else:
+            m["name"] = label
+            scoped.append(m)
+    if five is None and seven is None and not scoped:
+        return None
+    return {"fiveHour": five, "sevenDay": seven, "scoped": scoped}
+
+
+def cswap_codex_rows():
+    """One row per login `cswap codex` manages, or None to use the single
+    live-login read instead."""
+    try:
+        out = subprocess.run(
+            [CSWAP, "codex", "list", "--json", "--cached"],
+            capture_output=True, text=True, timeout=CODEX_TIMEOUT_S,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    raw = out.stdout
+    brace = raw.find("{")
+    if out.returncode != 0 or brace < 0:
+        return None
+    try:
+        accounts = json.loads(raw[brace:]).get("accounts") or []
+    except (ValueError, AttributeError):
+        return None
+    now = time.time()
+    rows = []
+    for account in accounts:
+        number = account.get("number")
+        if not isinstance(number, int):
+            continue
+        email = account.get("email") or ""
+        plan = account.get("plan") or ""
+        reading = account.get("usage") or {}
+        usage = wire_usage(reading)
+        fetched = parse_iso(reading.get("fetchedAt"))
+        fresh = usage is not None and fetched is not None and now - fetched <= CACHE_MAX_AGE_S
+        active = bool(account.get("active"))
+        rows.append({
+            "number": CODEX_ROW_BASE + number,
+            "email": email,
+            "organizationName": "OpenAI Codex",
+            "alias": "codex %s%s" % (email.split("@")[0] or "login", " · " + plan if plan else ""),
+            "active": active,
+            "switchable": not active,
+            "switchArgs": ["codex", "switch", str(number), "--json"],
+            "usageStatus": "ok",
+            "usage": usage if fresh else None,
+            "lastGoodUsage": None if fresh else usage,
+            "usageFetchedAt": iso_utc(fetched) if fetched else None,
+            "usageAgeSeconds": (now - fetched) if fetched else None,
+            "lastGoodFetchedAt": None,
+            "lastGoodAgeSeconds": None,
+        })
+    return rows or None
+
+
 def main():
+    codex_rows = cswap_codex_rows()
     codex_box = {}
     codex_thread = threading.Thread(target=fetch_codex, args=(codex_box,))
-    codex_thread.start()
+    if codex_rows is None:
+        codex_thread.start()
 
     try:
         cswap = subprocess.run(
@@ -181,11 +269,13 @@ def main():
             timeout=CSWAP_TIMEOUT_S,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
-        codex_thread.join(CODEX_TIMEOUT_S)
+        if codex_thread.is_alive():
+            codex_thread.join(CODEX_TIMEOUT_S)
         sys.stderr.write("nl-usage: cswap failed: %s\n" % e)
         sys.exit(1)
 
-    codex_thread.join(CODEX_TIMEOUT_S + 1)
+    if codex_thread.is_alive():
+        codex_thread.join(CODEX_TIMEOUT_S + 1)
 
     # cswap may print an upgrade-notice line before the JSON payload.
     raw = cswap.stdout
@@ -201,12 +291,17 @@ def main():
         sys.stderr.write(cswap.stderr)
         sys.exit(cswap.returncode)
 
-    row = codex_account(codex_box.get("usage"))
-    if row is not None:
+    if codex_rows is not None:
+        rows = codex_rows
+    else:
+        row = codex_account(codex_box.get("usage"))
+        rows = [row] if row is not None else []
+    if rows:
+        taken = {r["number"] for r in rows} | {CODEX_SLOT}
         payload.setdefault("accounts", [])
         payload["accounts"] = [
-            a for a in payload["accounts"] if a.get("number") != CODEX_SLOT
-        ] + [row]
+            a for a in payload["accounts"] if a.get("number") not in taken
+        ] + rows
     json.dump(payload, sys.stdout)
     sys.stdout.write("\n")
 

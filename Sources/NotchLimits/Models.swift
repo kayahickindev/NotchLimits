@@ -31,6 +31,9 @@ struct AccountVM: Identifiable {
     let isStale: Bool         // usage was null → values from lastGoodUsage
     let canSwitch: Bool       // false for display-only synthetic rows
     let meters: [MeterVM]     // always ordered 5h, 7d, then scoped by name
+    /// cswap arguments that make this row active; nil = `switch <id> --json`.
+    /// Codex rows from nl-usage send `codex switch <n> --json`.
+    var switchArguments: [String]? = nil
 }
 
 // Wire schema (cswap list --json, every leaf Optional per spec). Extra live
@@ -48,6 +51,7 @@ struct CSwapAccount: Decodable, Sendable {
     let alias: String?
     let active: Bool?
     let switchable: Bool?
+    let switchArgs: [String]?
     let usageStatus: String?
     let usage: CSwapUsage?
     let lastGoodUsage: CSwapUsage?
@@ -155,7 +159,8 @@ extension AccountVM {
             needsRelogin: wire.usageStatus == "relogin_required",
             isStale: wire.usage == nil,
             canSwitch: wire.switchable ?? (email != "codex@openai.com"),
-            meters: meters
+            meters: meters,
+            switchArguments: wire.switchArgs
         )
     }
 }
