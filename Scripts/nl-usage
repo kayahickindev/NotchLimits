@@ -31,6 +31,7 @@ import time
 CSWAP = os.path.expanduser("~/.local/bin/cswap")
 CODEX = os.path.expanduser("~/.local/bin/codex")
 CACHE = os.path.expanduser("~/.cache/nl-codex-usage.json")
+CONFIG_DIR = os.path.expanduser("~/.claude-swap-backup/configs")
 CODEX_SLOT = 99
 CODEX_ROW_BASE = 100
 CACHE_MAX_AGE_S = 30 * 60
@@ -256,6 +257,31 @@ def cswap_codex_rows():
     return rows or None
 
 
+def plan_tiers():
+    """Slot number -> "max" | "team", read from cswap's backed-up Claude
+    login configs. organizationType is claude_max for a personal Max plan and
+    claude_team for a Business/Team seat; it does not change, so a slightly
+    stale backup is fine. Missing or unreadable -> the slot is simply left
+    ungrouped by the panel."""
+    import glob
+    out = {}
+    for path in glob.glob(os.path.join(CONFIG_DIR, ".claude-config-*.json")):
+        name = os.path.basename(path)[len(".claude-config-"):]
+        num = name.split("-", 1)[0]
+        if not num.isdigit():
+            continue
+        try:
+            with open(path) as f:
+                org_type = (json.load(f).get("oauthAccount") or {}).get("organizationType")
+        except (OSError, ValueError):
+            continue
+        if org_type == "claude_max":
+            out[int(num)] = "max"
+        elif org_type == "claude_team":
+            out[int(num)] = "team"
+    return out
+
+
 def main():
     codex_rows = cswap_codex_rows()
     codex_box = {}
@@ -298,12 +324,18 @@ def main():
     else:
         row = codex_account(codex_box.get("usage"))
         rows = [row] if row is not None else []
+    tiers = plan_tiers()
+    for a in payload.get("accounts") or []:
+        if a.get("number") in tiers:
+            a["planTier"] = tiers[a["number"]]
     if rows:
         taken = {r["number"] for r in rows} | {CODEX_SLOT}
         payload.setdefault("accounts", [])
         payload["accounts"] = [
             a for a in payload["accounts"] if a.get("number") not in taken
         ] + rows
+    for r in rows:
+        r["planTier"] = "codex"
     json.dump(payload, sys.stdout)
     sys.stdout.write("\n")
 
