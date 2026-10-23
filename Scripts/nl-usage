@@ -241,7 +241,9 @@ def cswap_codex_rows():
             "organizationName": "OpenAI Codex",
             "alias": "codex %s%s" % (email.split("@")[0] or "login", " · " + plan if plan else ""),
             "active": active,
-            "switchable": not active,
+            # A login pinned to another home (Pro on plain `codex`) is shown
+            # but never switched into the rotating home.
+            "switchable": not active and not account.get("pinnedTo"),
             "switchArgs": ["codex", "switch", str(number), "--json"],
             "usageStatus": "ok",
             "usage": usage if fresh else None,
